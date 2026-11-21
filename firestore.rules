@@ -1,0 +1,314 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Primitive Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function hasCustomerProfile(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function hasAdminProfile(uid) {
+      return exists(/databases/$(database)/documents/admins/$(uid));
+    }
+
+    // --- Entity Validation Helpers ---
+    function isValidAdminRegistry(data) {
+      return data.adminUids is list &&
+             data.adminUids.size() >= 1 &&
+             data.adminUids.size() <= 2 &&
+             (data.adminUids[0] is string && isValidId(data.adminUids[0])) &&
+             (data.adminUids.size() == 1 || (data.adminUids[1] is string && isValidId(data.adminUids[1]) && data.adminUids[1] != data.adminUids[0])) &&
+             data.maxAdmins is int &&
+             data.maxAdmins == 2 &&
+             data.updatedAt is timestamp &&
+             data.updatedAt <= request.time;
+    }
+
+    function isValidAdminAccount(data) {
+      return data.uid is string && isValidId(data.uid) &&
+             data.email is string && data.email.size() <= 160 &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
+             data.slotNumber is int && (data.slotNumber == 1 || data.slotNumber == 2) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidCustomerProfile(data) {
+      return data.uid is string && isValidId(data.uid) &&
+             data.role is string && data.role == 'customer' &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 160 &&
+             data.mobile is string && data.mobile.size() >= 6 && data.mobile.size() <= 24 &&
+             data.address is string && data.address.size() >= 3 && data.address.size() <= 300 &&
+             data.locationLabel is string && data.locationLabel.size() <= 160 &&
+             data.latitude is number && data.latitude >= -90.0 && data.latitude <= 90.0 &&
+             data.longitude is number && data.longitude >= -180.0 && data.longitude <= 180.0 &&
+             (!('photoBase64' in data) || (data.photoBase64 is string && data.photoBase64.size() <= 80000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidCatalogPricing(data) {
+      return data.servicePrices is map && data.servicePrices.size() >= 1 && data.servicePrices.size() <= 20 &&
+             data.fabricPrices is map && data.fabricPrices.size() >= 1 && data.fabricPrices.size() <= 30 &&
+             data.dressTypePrices is map && data.dressTypePrices.size() >= 1 && data.dressTypePrices.size() <= 30 &&
+             data.roseWaterFee is number && data.roseWaterFee >= 0 && data.roseWaterFee <= 5000 &&
+             data.extraStarchFee is number && data.extraStarchFee >= 0 && data.extraStarchFee <= 5000 &&
+             data.doorstepDeliveryFee is number && data.doorstepDeliveryFee >= 0 && data.doorstepDeliveryFee <= 5000 &&
+             data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidOrderStatus(status) {
+      return status in [
+        'pending',
+        'accepted',
+        'rejected',
+        'processing',
+        'ready',
+        'out_for_delivery',
+        'delivered'
+      ];
+    }
+
+    function isValidOrderTransition(fromStatus, toStatus) {
+      return (fromStatus == 'pending' && (toStatus == 'accepted' || toStatus == 'rejected')) ||
+             (fromStatus == 'accepted' && toStatus == 'processing') ||
+             (fromStatus == 'processing' && toStatus == 'ready') ||
+             (fromStatus == 'ready' && toStatus == 'out_for_delivery') ||
+             (fromStatus == 'out_for_delivery' && toStatus == 'delivered');
+    }
+
+    function isValidOrder(data) {
+      return data.customerId is string && isValidId(data.customerId) &&
+             data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+             data.customerMobile is string && data.customerMobile.size() >= 6 && data.customerMobile.size() <= 24 &&
+             data.serviceType is string && data.serviceType.size() >= 1 && data.serviceType.size() <= 80 &&
+             data.fabricType is string && data.fabricType.size() >= 1 && data.fabricType.size() <= 80 &&
+             data.dressType is string && data.dressType.size() >= 1 && data.dressType.size() <= 80 &&
+             data.quantity is int && data.quantity >= 1 && data.quantity <= 200 &&
+             data.roseWaterAdded is bool &&
+             data.extraStarchAdded is bool &&
+             data.deliveryMethod is string && data.deliveryMethod in ['doorstep_pickup_delivery', 'self_dropoff_pickup'] &&
+             data.pickupAddress is string && data.pickupAddress.size() >= 3 && data.pickupAddress.size() <= 300 &&
+             data.locationLabel is string && data.locationLabel.size() <= 160 &&
+             data.latitude is number && data.latitude >= -90.0 && data.latitude <= 90.0 &&
+             data.longitude is number && data.longitude >= -180.0 && data.longitude <= 180.0 &&
+             data.notes is string && data.notes.size() <= 300 &&
+             data.status is string && isValidOrderStatus(data.status) &&
+             data.rejectionReason is string && data.rejectionReason.size() <= 300 &&
+             data.unitPrice is number && data.unitPrice >= 0 && data.unitPrice <= 100000 &&
+             data.addOnPrice is number && data.addOnPrice >= 0 && data.addOnPrice <= 100000 &&
+             data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 10000 &&
+             data.totalPrice is number && data.totalPrice >= 0 && data.totalPrice <= 1000000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidOrderMessage(data) {
+      return data.orderId is string && isValidId(data.orderId) &&
+             data.customerId is string && isValidId(data.customerId) &&
+             data.senderId is string && isValidId(data.senderId) &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 100 &&
+             data.senderRole is string && data.senderRole in ['customer', 'admin'] &&
+             data.text is string && data.text.size() >= 1 && data.text.size() <= 1000 &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // --- 1. Admin Registry (Strict 2-Admin Cap) ---
+    match /config/{docId} {
+      allow get: if isSignedIn() && docId == 'adminRegistry';
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+                       docId == 'adminRegistry' &&
+                       !hasCustomerProfile(request.auth.uid) &&
+                       incoming().keys().hasAll(['adminUids', 'maxAdmins', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['adminUids', 'maxAdmins', 'updatedAt']) &&
+                       isValidAdminRegistry(incoming()) &&
+                       incoming().adminUids.size() == 1 &&
+                       incoming().adminUids[0] == request.auth.uid;
+
+      allow update: if isSignedIn() &&
+                       docId == 'adminRegistry' &&
+                       !hasCustomerProfile(request.auth.uid) &&
+                       incoming().keys().hasAll(['adminUids', 'maxAdmins', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['adminUids', 'maxAdmins', 'updatedAt']) &&
+                       isValidAdminRegistry(incoming()) &&
+                       existing().adminUids.size() < 2 &&
+                       !(request.auth.uid in existing().adminUids) &&
+                       incoming().adminUids.size() == existing().adminUids.size() + 1 &&
+                       incoming().adminUids[0] == existing().adminUids[0] &&
+                       incoming().adminUids[1] == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+    // --- 2. Authorized Admin Accounts (Max 2, Immutable) ---
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn() &&
+                       isValidId(adminId) &&
+                       request.auth.uid == adminId &&
+                       !hasCustomerProfile(adminId) &&
+                       incoming().keys().hasAll(['uid', 'email', 'displayName', 'slotNumber', 'createdAt']) &&
+                       incoming().keys().hasOnly(['uid', 'email', 'displayName', 'slotNumber', 'createdAt']) &&
+                       isValidAdminAccount(incoming()) &&
+                       incoming().uid == request.auth.uid &&
+                       existsAfter(/databases/$(database)/documents/config/adminRegistry) &&
+                       request.auth.uid in getAfter(/databases/$(database)/documents/config/adminRegistry).data.adminUids &&
+                       getAfter(/databases/$(database)/documents/config/adminRegistry).data.adminUids.size() <= 2 &&
+                       ((incoming().slotNumber == 1 && getAfter(/databases/$(database)/documents/config/adminRegistry).data.adminUids[0] == request.auth.uid) ||
+                        (incoming().slotNumber == 2 && getAfter(/databases/$(database)/documents/config/adminRegistry).data.adminUids.size() == 2 && getAfter(/databases/$(database)/documents/config/adminRegistry).data.adminUids[1] == request.auth.uid));
+
+      allow update, delete: if false;
+    }
+
+    // --- 3. Customer Profiles (Role-Locked, No Mixing with Admin) ---
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       !hasAdminProfile(userId) &&
+                       incoming().keys().hasAll(['uid', 'role', 'name', 'email', 'mobile', 'address', 'locationLabel', 'latitude', 'longitude', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['uid', 'role', 'name', 'email', 'mobile', 'address', 'locationLabel', 'latitude', 'longitude', 'photoBase64', 'createdAt', 'updatedAt']) &&
+                       isValidCustomerProfile(incoming()) &&
+                       incoming().uid == request.auth.uid &&
+                       incoming().role == 'customer';
+
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       !hasAdminProfile(userId) &&
+                       isValidCustomerProfile(incoming()) &&
+                       incoming().uid == existing().uid &&
+                       incoming().role == existing().role &&
+                       incoming().email == existing().email &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'mobile', 'address', 'locationLabel', 'latitude', 'longitude', 'photoBase64', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // --- 4. Service Catalog & Pricing (Admin-Editable) ---
+    match /catalog/{docId} {
+      allow get: if isSignedIn() && docId == 'pricing';
+      allow list: if false;
+
+      allow create, update: if isAdmin() &&
+                               docId == 'pricing' &&
+                               incoming().keys().hasAll(['servicePrices', 'fabricPrices', 'dressTypePrices', 'roseWaterFee', 'extraStarchFee', 'doorstepDeliveryFee', 'updatedBy', 'updatedAt']) &&
+                               incoming().keys().hasOnly(['servicePrices', 'fabricPrices', 'dressTypePrices', 'roseWaterFee', 'extraStarchFee', 'doorstepDeliveryFee', 'updatedBy', 'updatedAt']) &&
+                               isValidCatalogPricing(incoming()) &&
+                               incoming().updatedBy == request.auth.uid;
+
+      allow delete: if false;
+    }
+
+    // --- 5. Centralized Orders ---
+    match /orders/{orderId} {
+      allow get: if isSignedIn() && isValidId(orderId) && (existing().customerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.customerId == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+                       isValidId(orderId) &&
+                       !hasAdminProfile(request.auth.uid) &&
+                       hasCustomerProfile(request.auth.uid) &&
+                       incoming().keys().hasAll([
+                         'customerId', 'customerName', 'customerMobile',
+                         'serviceType', 'fabricType', 'dressType', 'quantity',
+                         'roseWaterAdded', 'extraStarchAdded', 'deliveryMethod',
+                         'pickupAddress', 'locationLabel', 'latitude', 'longitude',
+                         'notes', 'status', 'rejectionReason',
+                         'unitPrice', 'addOnPrice', 'deliveryFee', 'totalPrice',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'customerId', 'customerName', 'customerMobile',
+                         'serviceType', 'fabricType', 'dressType', 'quantity',
+                         'roseWaterAdded', 'extraStarchAdded', 'deliveryMethod',
+                         'pickupAddress', 'locationLabel', 'latitude', 'longitude',
+                         'notes', 'status', 'rejectionReason',
+                         'unitPrice', 'addOnPrice', 'deliveryFee', 'totalPrice',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidOrder(incoming()) &&
+                       incoming().customerId == request.auth.uid &&
+                       incoming().status == 'pending' &&
+                       incoming().rejectionReason == '';
+
+      // Only Admin can advance status along valid state machine transitions
+      allow update: if isAdmin() &&
+                       isValidId(orderId) &&
+                       isValidOrder(incoming()) &&
+                       existing().status != 'delivered' &&
+                       existing().status != 'rejected' &&
+                       isValidOrderTransition(existing().status, incoming().status) &&
+                       incoming().customerId == existing().customerId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'updatedAt']) &&
+                       (incoming().status == 'rejected' || incoming().rejectionReason == existing().rejectionReason);
+
+      allow delete: if false;
+
+      // --- 6. Order-Linked Real-Time Chat ---
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(orderId) && isValidId(messageId) &&
+                      (existing().customerId == request.auth.uid || isAdmin());
+
+        allow list: if isSignedIn() && isValidId(orderId) &&
+                       (resource.data.customerId == request.auth.uid || isAdmin());
+
+        allow create: if isSignedIn() &&
+                         isValidId(orderId) &&
+                         isValidId(messageId) &&
+                         incoming().keys().hasAll(['orderId', 'customerId', 'senderId', 'senderName', 'senderRole', 'text', 'createdAt']) &&
+                         incoming().keys().hasOnly(['orderId', 'customerId', 'senderId', 'senderName', 'senderRole', 'text', 'createdAt']) &&
+                         isValidOrderMessage(incoming()) &&
+                         incoming().orderId == orderId &&
+                         incoming().senderId == request.auth.uid &&
+                         exists(/databases/$(database)/documents/orders/$(orderId)) &&
+                         (
+                           (isAdmin() &&
+                            incoming().senderRole == 'admin' &&
+                            incoming().customerId == get(/databases/$(database)/documents/orders/$(orderId)).data.customerId) ||
+                           (!hasAdminProfile(request.auth.uid) &&
+                            incoming().senderRole == 'customer' &&
+                            incoming().customerId == request.auth.uid &&
+                            get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid)
+                         );
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}

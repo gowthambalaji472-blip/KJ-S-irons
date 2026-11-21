@@ -1,0 +1,217 @@
+{
+  "entities": {
+    "AdminRegistry": {
+      "title": "AdminRegistry",
+      "description": "Singleton registry enforcing a strict maximum of two authorized admin UIDs.",
+      "type": "object",
+      "properties": {
+        "adminUids": {
+          "type": "array",
+          "description": "List of up to 2 authorized admin UIDs."
+        },
+        "maxAdmins": {
+          "type": "integer",
+          "description": "Fixed cap of 2 admins."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of registry update (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["adminUids", "maxAdmins", "updatedAt"]
+    },
+    "AdminAccount": {
+      "title": "AdminAccount",
+      "description": "Authorized admin account profile locked to slot 1 or 2.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "slotNumber": { "type": "integer" },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp (FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["uid", "email", "displayName", "slotNumber", "createdAt"]
+    },
+    "CustomerProfile": {
+      "title": "CustomerProfile",
+      "description": "Customer profile containing contact and doorstep pickup location.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "role": { "type": "string", "enum": ["customer"] },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "mobile": { "type": "string" },
+        "address": { "type": "string" },
+        "locationLabel": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "photoBase64": { "type": "string", "description": "Optional compressed Base64 JPEG profile DP (<= 80000 chars)." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "uid",
+        "role",
+        "name",
+        "email",
+        "mobile",
+        "address",
+        "locationLabel",
+        "latitude",
+        "longitude",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CatalogPricing": {
+      "title": "CatalogPricing",
+      "description": "Admin-editable catalog pricing for services, fabrics (including Starched Shirt & Sarees), dress types, Rose Water add-on, and delivery.",
+      "type": "object",
+      "properties": {
+        "servicePrices": { "type": "object" },
+        "fabricPrices": { "type": "object" },
+        "dressTypePrices": { "type": "object" },
+        "roseWaterFee": { "type": "number" },
+        "extraStarchFee": { "type": "number" },
+        "doorstepDeliveryFee": { "type": "number" },
+        "updatedBy": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "servicePrices",
+        "fabricPrices",
+        "dressTypePrices",
+        "roseWaterFee",
+        "extraStarchFee",
+        "doorstepDeliveryFee",
+        "updatedBy",
+        "updatedAt"
+      ]
+    },
+    "LaundryOrder": {
+      "title": "LaundryOrder",
+      "description": "Customer garment care order synced in real time to the central Admin dashboard.",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "customerMobile": { "type": "string" },
+        "serviceType": { "type": "string" },
+        "fabricType": { "type": "string" },
+        "dressType": { "type": "string" },
+        "quantity": { "type": "integer" },
+        "roseWaterAdded": { "type": "boolean" },
+        "extraStarchAdded": { "type": "boolean" },
+        "deliveryMethod": {
+          "type": "string",
+          "enum": ["doorstep_pickup_delivery", "self_dropoff_pickup"]
+        },
+        "pickupAddress": { "type": "string" },
+        "locationLabel": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "notes": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "accepted",
+            "rejected",
+            "processing",
+            "ready",
+            "out_for_delivery",
+            "delivered"
+          ]
+        },
+        "rejectionReason": { "type": "string" },
+        "unitPrice": { "type": "number" },
+        "addOnPrice": { "type": "number" },
+        "deliveryFee": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "customerId",
+        "customerName",
+        "customerMobile",
+        "serviceType",
+        "fabricType",
+        "dressType",
+        "quantity",
+        "roseWaterAdded",
+        "extraStarchAdded",
+        "deliveryMethod",
+        "pickupAddress",
+        "locationLabel",
+        "latitude",
+        "longitude",
+        "notes",
+        "status",
+        "rejectionReason",
+        "unitPrice",
+        "addOnPrice",
+        "deliveryFee",
+        "totalPrice",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "OrderMessage": {
+      "title": "OrderMessage",
+      "description": "Order-linked chat message between customer and admin.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["customer", "admin"] },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "orderId",
+        "customerId",
+        "senderId",
+        "senderName",
+        "senderRole",
+        "text",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/config/adminRegistry": {
+      "schema": { "$ref": "#/entities/AdminRegistry" },
+      "description": "Singleton document tracking the first two authorized admins."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminAccount" },
+      "description": "Authorized admin accounts (maximum 2)."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/CustomerProfile" },
+      "description": "Customer profiles containing mobile, address, and map coordinates."
+    },
+    "/catalog/pricing": {
+      "schema": { "$ref": "#/entities/CatalogPricing" },
+      "description": "Live service, fabric, dress type, add-on, and delivery rates."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/LaundryOrder" },
+      "description": "Centralized orders collection visible to the owning customer and all admins."
+    },
+    "/orders/{orderId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/OrderMessage" },
+      "description": "Order-linked chat messages."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "KJ Iron's",
+  "description": "Laundry, dry cleaning, ironing & clothing care service with real-time order tracking, role-based security, Google Maps pickup pinning, and order-linked chat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

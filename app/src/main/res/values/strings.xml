@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">KJ Iron\'s</string>
+    <string name="brand_title">KJ IRON\'S</string>
+    <string name="brand_tagline">Fresh Linen, Crisp Steam &amp; Clothing Care</string>
+    <string name="role_customer">Customer</string>
+    <string name="role_admin">Admin</string>
+    <string name="sign_in_google">Continue with Google</string>
+    <string name="cd_hero_banner">KJ Iron\'s freshly pressed shirts, folded saree, and rose water bottle</string>
+    <string name="cd_back">Navigate back</string>
+    <string name="cd_notifications">Order notifications</string>
+    <string name="cd_profile">Customer profile</string>
+    <string name="cd_sign_out">Sign out</string>
+    <string name="cd_send_message">Send message</string>
+    <string name="cd_detect_gps">Detect current GPS location</string>
+</resources>
